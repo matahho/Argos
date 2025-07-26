@@ -1,3 +1,5 @@
+import logging
+
 import torchvision
 from torchvision import ops
 from torchvision.models.detection.faster_rcnn import FastRCNNPredictor

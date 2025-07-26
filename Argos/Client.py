@@ -6,9 +6,9 @@ from flwr.common import Context
 from torch.utils.data import Subset
 import torch
 
-from Argos import dataset
+from Argos.Dataset_utils import *
 from Argos.Model import get_model, train, evaluate
-from Argos.dataset import number_of_classes, get_dataset_for_client, partitioned_dataset_indices
+from Argos.Dataset_utils import number_of_classes, get_dataset_for_client, partitioned_dataset_indices
 from Argos.utils import device_allocation
 
 batch_size = 32

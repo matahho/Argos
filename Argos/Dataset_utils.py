@@ -11,6 +11,8 @@ from torch.utils.data import Subset
 from torchvision.transforms import transforms
 from tqdm import tqdm
 
+
+
 from Argos.utils import NUMBER_OF_CLIENTS
 
 dataset_path = "../data/"
@@ -106,7 +108,9 @@ class MTSDDataset(torch.utils.data.Dataset):
 def partition_dataset(dataset, num_clients):
     label_to_indices = defaultdict(list)
 
-    for idx in tqdm(range(len(dataset))):
+    logging.info(f"Starting Partitioning dataset into {num_clients} clients.")
+
+    for idx in range(len(dataset)):
         _, target = dataset[idx]
         labels = target['labels'].unique().tolist()
         for label in labels:
@@ -120,6 +124,8 @@ def partition_dataset(dataset, num_clients):
         assigned_labels = label_ids[client_id::num_clients]
         for lbl in assigned_labels:
             client_data[client_id].extend(label_to_indices[lbl])
+
+    logging.info(f" Partitioning dataset into {num_clients} clients finished.")
 
     return client_data
 
@@ -157,5 +163,5 @@ def get_dataset_for_client(
 label_mapping = extract_label_mapping(classes_json_file)
 number_of_classes = len(label_mapping)
 dataset = MTSDDataset(root_dir=dataset_path)
-dataset = Subset(dataset, list(range(100)))
+dataset = Subset(dataset, list(range(10)))
 partitioned_dataset_indices = partition_dataset(dataset=dataset, num_clients=NUMBER_OF_CLIENTS)
