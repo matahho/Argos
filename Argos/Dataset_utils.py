@@ -9,14 +9,6 @@ import torch
 from PIL import Image
 from torch.utils.data import Subset
 from torchvision.transforms import transforms
-from tqdm import tqdm
-
-
-
-from Argos.utils import NUMBER_OF_CLIENTS
-
-dataset_path = "../data/"
-classes_json_file = os.path.join(dataset_path, "classes.json")
 
 
 def extract_label_mapping(classes_file):
@@ -104,6 +96,8 @@ class MTSDDataset(torch.utils.data.Dataset):
 
 
         return img_tensor, target
+
+
 @cache
 def partition_dataset(dataset, num_clients):
     label_to_indices = defaultdict(list)
@@ -159,9 +153,3 @@ def get_dataset_for_client(
 
     return train_set, val_set, test_set
 
-
-label_mapping = extract_label_mapping(classes_json_file)
-number_of_classes = len(label_mapping)
-dataset = MTSDDataset(root_dir=dataset_path)
-dataset = Subset(dataset, list(range(10)))
-partitioned_dataset_indices = partition_dataset(dataset=dataset, num_clients=NUMBER_OF_CLIENTS)

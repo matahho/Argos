@@ -1,19 +1,11 @@
-import uuid
-
 import flwr as fl
 import torch.optim as optim
 from flwr.common import Context
-from torch.utils.data import Subset
-import torch
-
 from Argos.Dataset_utils import *
 from Argos.Model import get_model, train, evaluate
-from Argos.Dataset_utils import number_of_classes, get_dataset_for_client, partitioned_dataset_indices
+from Argos.Dataset_utils import get_dataset_for_client
 from Argos.utils import device_allocation
-
-batch_size = 32
-learning_rate = 0.001
-device = device_allocation()
+from Argos.settings import DEVICE , CLIENT_LEARNING_RATE , CLIENT_BATCH_SIZE
 
 class Client(fl.client.NumPyClient):
     def __init__(
@@ -21,9 +13,9 @@ class Client(fl.client.NumPyClient):
             model,
             train_dataset,
             eval_dataset,
-            device=device,
-            learning_rate=learning_rate,
-            batch_size=batch_size,
+            device=DEVICE,
+            learning_rate=CLIENT_LEARNING_RATE,
+            batch_size=CLIENT_BATCH_SIZE,
             optimizer=None,
 
     ):
@@ -77,26 +69,3 @@ class Client(fl.client.NumPyClient):
         )
         return avg_loss, len(self.eval_loader), {"accuracy": accuracy}
 
-
-def new_client(context : Context) -> Client:
-    """Create a Flower client representing a single organization."""
-
-    neural_network = get_model(
-        num_classes=number_of_classes
-    ).to(device)
-
-    partition_id = context.node_config["partition-id"]
-    train_dataset , val_dataset ,test_dataset = get_dataset_for_client(
-        partition_id=partition_id,
-        full_dataset=dataset,
-        partitioned_dataset_indices=partitioned_dataset_indices,
-    )
-
-
-    return Client(
-        model=neural_network,
-        train_dataset=train_dataset,
-        eval_dataset=val_dataset,
-        learning_rate=learning_rate,
-        batch_size=batch_size,
-    ).to_client()

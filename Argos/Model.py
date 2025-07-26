@@ -1,16 +1,12 @@
-import logging
-
 import torchvision
 from torchvision import ops
 from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 import torch
 from tqdm import tqdm
-
 from Argos.utils import device_allocation
+from Argos.settings import DEVICE
 
-device = device_allocation()
-
-def get_model(num_classes, checkpoint_path=None):
+def get_model(num_classes, checkpoint_path=None, device=DEVICE):
     """
     Returns a Faster R-CNN model with the specified number of output classes.
 
@@ -35,11 +31,11 @@ def get_model(num_classes, checkpoint_path=None):
         model.load_state_dict(checkpoint['model_state_dict'], strict=False)
         print(f"Loaded model weights from: {checkpoint_path}")
 
-    return model
+    return model.to(device)
 
 
 
-def train(model, dataloader, optimizer, device=device):
+def train(model, dataloader, optimizer, device=DEVICE):
     """
     Trains Faster R-CNN model for one epoch.
 
@@ -79,7 +75,7 @@ def train(model, dataloader, optimizer, device=device):
 
 
 
-def evaluate(model, dataloader, device=device, iou_threshold=0.5):
+def evaluate(model, dataloader, device=DEVICE, iou_threshold=0.5):
     """
     Evaluate a Faster R-CNN model on a dataset.
 
