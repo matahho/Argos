@@ -134,24 +134,3 @@ def evaluate(model, dataloader, device=device, iou_threshold=0.5):
     accuracy = correct_detections / total_targets if total_targets > 0 else 0.0
 
     return avg_loss, accuracy
-
-
-def evaluate(model, dataloader, device=device):
-    model.eval()
-    model.to(device)
-
-    total_images = 0
-    total_detections = 0
-
-    with torch.no_grad():
-        for images, _ in tqdm(dataloader, desc="Evaluating", leave=False):
-            images = [img.to(device) for img in images]
-            outputs = model(images)
-            total_images += len(images)
-            total_detections += sum([len(o["boxes"]) for o in outputs])
-
-    print(f"Evaluated {total_images} images.")
-    print(f"Total detections: {total_detections}")
-
-
-    return loss, len(dataloader), {"accuracy": accuracy}
