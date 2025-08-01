@@ -2,7 +2,7 @@ from Argos.utils import device_allocation
 import os
 
 # Server Settings
-NUMBER_OF_CLIENTS = 5
+NUMBER_OF_CLIENTS = 2
 
 # Clients' Settings
 CLIENT_BATCH_SIZE = 32
