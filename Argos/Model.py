@@ -3,7 +3,7 @@ from torchvision import ops
 from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 import torch
 from tqdm import tqdm
-from Argos.utils import device_allocation
+import os
 from Argos.settings import DEVICE
 
 def get_model(num_classes, checkpoint_path=None, device=DEVICE):
@@ -35,41 +35,54 @@ def get_model(num_classes, checkpoint_path=None, device=DEVICE):
 
 
 
-def train(model, dataloader, optimizer, device=DEVICE):
+def train(model, dataloader, optimizer, epoch, checkpoint_dir=None, device=DEVICE):
     """
-    Trains Faster R-CNN model for one epoch.
+    Trains Faster R-CNN model for one epoch and optionally saves a checkpoint.
 
     Args:
         model (torch.nn.Module): The Faster R-CNN model.
-        dataloader (DataLoader): A PyTorch DataLoader returning (images, targets).
+        dataloader (DataLoader): PyTorch DataLoader returning (images, targets).
         optimizer (torch.optim.Optimizer): Optimizer (e.g., SGD).
-        device (torch.device): CUDA or CPU.
+        epoch (int): Current epoch number (used in checkpoint filename).
+        checkpoint_dir (str, optional): Directory to save model checkpoints.
+        device (torch.device): Device to train on ("cuda" or "cpu").
 
     Returns:
         avg_loss (float): Average loss over the epoch.
     """
     model.train()
-    model.to(device)
     total_loss = 0.0
     num_batches = len(dataloader)
 
-    pbar = tqdm(dataloader, desc="Training", leave=False)
+    pbar = tqdm(dataloader, desc=f"Epoch {epoch}", leave=False)
 
-    for images, targets in pbar:
+    for batch_idx, (images, targets) in enumerate(pbar):
         images = [img.to(device) for img in images]
         targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
 
         loss_dict = model(images, targets)
-        losses = sum(loss for loss in loss_dict.values())
+        loss = sum(loss for loss in loss_dict.values())
 
         optimizer.zero_grad()
-        losses.backward()
+        loss.backward()
         optimizer.step()
 
-        total_loss += losses.item()
-        pbar.set_postfix(loss=losses.item())
+        total_loss += loss.item()
+        pbar.set_postfix(loss=f"{loss.item():.4f}", batch=f"{batch_idx+1}/{num_batches}")
 
     avg_loss = total_loss / num_batches
+
+    # Save checkpoint
+    if checkpoint_dir:
+        os.makedirs(checkpoint_dir, exist_ok=True)
+        checkpoint_path = os.path.join(checkpoint_dir, f"fasterrcnn_epoch_{epoch}.pth")
+        torch.save({
+            'epoch': epoch,
+            'model_state_dict': model.state_dict(),
+            'optimizer_state_dict': optimizer.state_dict()
+        }, checkpoint_path)
+        print(f"[✓] Saved checkpoint to {checkpoint_path}")
+
     return avg_loss
 
 
