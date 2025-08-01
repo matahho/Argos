@@ -86,62 +86,52 @@ def train(model, dataloader, optimizer, epoch, checkpoint_dir=None, device=DEVIC
     return avg_loss
 
 
-
-
 def evaluate(model, dataloader, device=DEVICE, iou_threshold=0.5):
     """
     Evaluate a Faster R-CNN model on a dataset.
 
+    Computes only IoU-based accuracy (no loss).
+
     Args:
         model (torch.nn.Module): Trained Faster R-CNN model.
-        dataloader (DataLoader): Validation/test dataloader.
+        dataloader (DataLoader): Validation/test DataLoader.
         device (torch.device): "cuda" or "cpu".
         iou_threshold (float): IoU threshold for counting correct detections.
 
     Returns:
-        avg_loss (float): Average loss on dataset.
         accuracy (float): Detection accuracy based on IoU.
     """
     model.eval()
     model.to(device)
 
-    total_loss = 0.0
-    num_batches = len(dataloader)
     correct_detections = 0
     total_targets = 0
 
     with torch.no_grad():
         pbar = tqdm(dataloader, desc="Evaluating", leave=False)
-
         for images, targets in pbar:
             images = [img.to(device) for img in images]
             targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
 
+            # skip samples with no ground-truth boxes
+            if any(t['boxes'].numel() == 0 for t in targets):
+                continue
 
-            loss_dict = model(images, targets)
-            losses = sum(loss for loss in loss_dict.values())
-            total_loss += losses.item()
-
+            # get predictions only
             outputs = model(images)
 
             for output, target in zip(outputs, targets):
-                pred_boxes = output['boxes']
-                pred_labels = output['labels']
-                gt_boxes = target['boxes']
-                gt_labels = target['labels']
-
-                total_targets += len(gt_boxes)
+                pred_boxes = output["boxes"]
+                gt_boxes = target["boxes"]
 
                 if len(pred_boxes) == 0 or len(gt_boxes) == 0:
                     continue
 
                 ious = ops.box_iou(pred_boxes, gt_boxes)
+                max_iou_per_gt, _ = ious.max(dim=0)
 
-                max_iou_per_gt, matched_preds = ious.max(dim=0)
-                correct = (max_iou_per_gt > iou_threshold).sum().item()
-                correct_detections += correct
+                correct_detections += (max_iou_per_gt > iou_threshold).sum().item()
+                total_targets += len(gt_boxes)
 
-    avg_loss = total_loss / num_batches
     accuracy = correct_detections / total_targets if total_targets > 0 else 0.0
-
-    return avg_loss, accuracy
+    return accuracy
