@@ -4,12 +4,19 @@ import os
 from collections import defaultdict
 import random
 from functools import cache
-
 import torch
 from PIL import Image
-from torch.utils.data import Subset
+from torch.utils.data import Subset, DataLoader
 from torchvision.transforms import transforms
+from src.settings import DATASET_PATH, NUMBER_OF_CLIENTS, TRAIN_PERCENTAGE, VAL_PERCENTAGE, TEST_PERCENTAGE, \
+    CLIENT_PARTITION_DIR, CLASSES_JSON_FILE
 
+from tqdm import tqdm
+
+def collate_fn(batch):
+    # batch is a list of (image_tensor, target_dict)
+    images, targets = zip(*batch)
+    return list(images), list(targets)
 
 def extract_label_mapping(classes_file):
     label_map = {}
@@ -26,6 +33,7 @@ def extract_label_mapping(classes_file):
     except Exception as e:
         print(f"An unexpected error occurred: {e}")
     return label_map
+
 
 
 class MTSDDataset(torch.utils.data.Dataset):
@@ -97,14 +105,13 @@ class MTSDDataset(torch.utils.data.Dataset):
 
         return img_tensor, target
 
-
 @cache
 def partition_dataset(dataset, num_clients):
     label_to_indices = defaultdict(list)
 
     logging.info(f"Starting Partitioning dataset into {num_clients} clients.")
 
-    for idx in range(len(dataset)):
+    for idx in tqdm(range(len(dataset))):
         _, target = dataset[idx]
         labels = target['labels'].unique().tolist()
         for label in labels:
@@ -123,33 +130,86 @@ def partition_dataset(dataset, num_clients):
 
     return client_data
 
-
 def get_dataset_for_client(
         partition_id,
-        full_dataset,
-        partitioned_dataset_indices:dict,
-        train_percentage=0.8, val_percentage=0.1, test_percentage=0.1
+        number_of_paritions,
+        batch_size,
 ) -> [Subset , Subset , Subset]:
+    train_percentage = TRAIN_PERCENTAGE
+    val_percentage = VAL_PERCENTAGE
+    test_percentage = TEST_PERCENTAGE
 
     assert abs(train_percentage + val_percentage + test_percentage - 1.0) < 1e-4, \
         "Splits must sum to 1.0"
 
-    assert partition_id in list(partitioned_dataset_indices.keys()) , "Client id must be in partitioned dataset keys"
+    assert partition_id <= NUMBER_OF_CLIENTS, f"Partition id must be less than or equal number of clients, partition id is {partition_id}"
 
-    client_samples = partitioned_dataset_indices[partition_id]
-    random.shuffle(client_samples)
+    partitioned_dataset_indicis = load_partitioned_indices(load_dir=CLIENT_PARTITION_DIR, num_clients=NUMBER_OF_CLIENTS)
+    full_dataset = MTSDDataset(root_dir=DATASET_PATH)
+    client_indices = partitioned_dataset_indicis.get(partition_id, [])
 
-    total = len(client_samples)
+    client_samples = Subset(full_dataset, client_indices)
+
+
+    total = len(client_indices)
     train_end = int(total * train_percentage)
     val_end = train_end + int(total * val_percentage)
 
-    train_ids = client_samples[:train_end]
-    val_ids = client_samples[train_end:val_end]
-    test_ids = client_samples[val_end:]
+    train_ids = client_indices[:train_end]
+    val_ids = client_indices[train_end:val_end]
+    test_ids = client_indices[val_end:]
 
-    train_set = Subset(full_dataset, train_ids)
-    val_set = Subset(full_dataset, val_ids)
-    test_set = Subset(full_dataset, test_ids)
+    train_set = Subset(client_samples, train_ids)
+    val_set = Subset(client_samples, val_ids)
+    test_set = Subset(client_samples, test_ids)
 
-    return train_set, val_set, test_set
+    train_loader = DataLoader(
+        train_set,
+        batch_size=batch_size,
+        shuffle=True,
+        collate_fn=collate_fn
+    )
 
+    val_loader = DataLoader(
+        val_set,
+        batch_size=batch_size,
+        shuffle=False,
+        collate_fn=collate_fn
+    )
+    test_loader = DataLoader(
+        test_set,
+        batch_size=batch_size,
+        shuffle=False,
+        collate_fn=collate_fn
+    )
+
+    return train_loader, val_loader, test_loader
+
+
+def save_partitioned_indices(partitioned_dataset: dict, save_dir: str):
+    os.makedirs(save_dir, exist_ok=True)
+    for client_id, indices in partitioned_dataset.items():
+        client_file = os.path.join(save_dir, f"client_{client_id}.json")
+        with open(client_file, 'w') as f:
+            json.dump(indices, f)
+    logging.info(f"Partitioned indices saved to {save_dir}")
+
+def load_partitioned_indices(load_dir: str, num_clients: int) -> dict:
+    partitioned_dataset_indicis = {}
+    for client_id in range(num_clients):
+        client_file = os.path.join(load_dir, f"client_{client_id}.json")
+        if os.path.exists(client_file):
+            with open(client_file, 'r') as f:
+                partitioned_dataset_indicis[client_id] = json.load(f)
+        else:
+            raise FileNotFoundError(f"Partition file for client {client_id} not found in {load_dir}")
+    logging.info(f"Partitioned indices loaded from {load_dir}")
+    return partitioned_dataset_indicis
+
+
+# NOTE : to save the partitioned dataset
+
+# dataset = MTSDDataset(DATASET_PATH)
+# dataset = Subset(dataset , range(100))
+# partitioned_dataset_indices = partition_dataset(dataset, num_clients=NUMBER_OF_CLIENTS)
+# save_partitioned_indices(partitioned_dataset_indices, CLIENT_PARTITION_DIR)
