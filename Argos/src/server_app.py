@@ -1,13 +1,12 @@
-"""src: A Flower / PyTorch app."""
+"""pytorchexample: A Flower / PyTorch app."""
 
 from typing import List, Tuple
+
 from flwr.common import Context, Metrics, ndarrays_to_parameters
 from flwr.server import ServerApp, ServerAppComponents, ServerConfig
 from flwr.server.strategy import FedAvg
 
-from src.dataset_utils import extract_label_mapping
-from src.model_manager import ModelManager
-from src.settings import CLASSES_JSON_FILE
+from src.task import *
 
 
 # Define metric aggregation function
@@ -22,15 +21,12 @@ def weighted_average(metrics: List[Tuple[int, Metrics]]) -> Metrics:
 
 def server_fn(context: Context):
     """Construct components that set the ServerApp behaviour."""
-    number_of_output_classes = len(extract_label_mapping(classes_file=CLASSES_JSON_FILE))
-    model_manager = ModelManager(number_of_output_classes=number_of_output_classes)
-    model = model_manager.get_model()
+
     # Read from config
     num_rounds = context.run_config["num-server-rounds"]
 
     # Initialize model parameters
-    ndarrays =  model_manager.get_weights(model=model)
-
+    ndarrays = get_weights(get_model())
     parameters = ndarrays_to_parameters(ndarrays)
 
     # Define the strategy
