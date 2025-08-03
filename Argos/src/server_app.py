@@ -6,11 +6,12 @@ from flwr.common import Context, Metrics, ndarrays_to_parameters
 from flwr.server import ServerApp, ServerAppComponents, ServerConfig
 from flwr.server.strategy import FedAvg
 
+from src.dataset import extract_label_mapping
+from src.model import get_model, get_weights
 from src.settings import CLASSES_JSON_FILE
-from src.task import *
 
 
-# Define metric aggregation function
+# metric aggregation function
 def weighted_average(metrics: List[Tuple[int, Metrics]]) -> Metrics:
     # Multiply accuracy of each client by number of examples used
     accuracies = [num_examples * m["accuracy"] for num_examples, m in metrics]
