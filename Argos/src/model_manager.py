@@ -49,7 +49,7 @@ class ModelManager:
 
 
 
-    def training(self, model, train_loader, validation_loader, epochs, learning_rate):
+    def train(self, model, train_loader, validation_loader, epochs, learning_rate):
         model.to(self.device)
         training_loss_history = []
 
@@ -60,24 +60,25 @@ class ModelManager:
             total_train_loss = 0.0
             pbar = tqdm(train_loader, desc=f"Epoch [{epoch + 1}/{epochs}] - Training", leave=False)
 
-            for images, targets in pbar:
+            for batch_idx, (images, targets) in enumerate(pbar):
                 images = [img.to(self.device) for img in images]
                 targets = [{k: v.to(self.device) for k, v in t.items()} for t in targets]
-                print("here1")
+
+                # skip samples with no ground-truth boxes
+                if any(t['boxes'].numel() == 0 for t in targets):
+                    continue
+
                 loss_dict = model(images, targets)
-                print("here2")
                 loss = sum(loss for loss in loss_dict.values())
-                print("here3")
+
                 optimizer.zero_grad()
                 loss.backward()
                 optimizer.step()
-                print("here4")
 
                 total_train_loss += loss.item()
-                pbar.set_postfix(loss=loss.item())
 
-            avg_loss = total_train_loss / len(train_loader)
-            training_loss_history.append(avg_loss)
+            avg_train_loss = total_train_loss / len(train_loader)
+            print(f"Epoch {epoch}/{epochs} — Train Loss: {avg_train_loss:.4f}")
 
         validation_accuracy = self.test(model=model, test_loader=validation_loader)
 
@@ -101,6 +102,11 @@ class ModelManager:
                 images = [img.to(self.device) for img in images]
                 targets = [{k: v.to(self.device) for k, v in t.items()} for t in targets]
 
+                # skip samples with no ground-truth boxes
+                if any(t['boxes'].numel() == 0 for t in targets):
+                    continue
+
+                # get predictions only
                 outputs = model(images)
 
                 for output, target in zip(outputs, targets):

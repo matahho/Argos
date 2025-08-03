@@ -21,7 +21,7 @@ class Client(NumPyClient):
         """Train the model with data of this client."""
         model = self.model_manger.get_model()
         self.model_manger.set_weights(model=model, parameters=parameters)
-        training_results = self.model_manger.training(
+        training_results = self.model_manger.train(
             model=model,
             train_loader=self.train_loader,
             validation_loader=self.validation_loader,
