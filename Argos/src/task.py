@@ -7,7 +7,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from flwr_datasets import FederatedDataset
 from flwr_datasets.partitioner import IidPartitioner
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, random_split
 from torchvision.transforms import Compose, Normalize, ToTensor
 import torchvision
 from torch.utils.data import Subset
@@ -40,14 +40,14 @@ from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 from torch.utils.data import Subset, DataLoader
 from torchvision.transforms import transforms
 
+from src.settings import TRAIN_PERCENTAGE, TEST_PERCENTAGE, DATASET_SIZE
 
 
-
-def get_model( checkpoint_path = None):
+def get_model(number_of_output_classes,  checkpoint_path = None):
 
     model = torchvision.models.detection.fasterrcnn_resnet50_fpn(weights="DEFAULT")
     in_features = model.roi_heads.box_predictor.cls_score.in_features
-    model.roi_heads.box_predictor = FastRCNNPredictor(in_features,76)
+    model.roi_heads.box_predictor = FastRCNNPredictor(in_features,number_of_output_classes)
 
     if checkpoint_path:
         checkpoint = torch.load(checkpoint_path, map_location='cpu')
@@ -76,40 +76,59 @@ def collate_fn(batch):
 
 
 def load_data(partition_id: int, num_partitions: int, batch_size: int):
-    """Load partition CIFAR10 data."""
+    """Load partitioned MTSD data dynamically based on client ID."""
     full_dataset = MTSDDataset(root_dir="./data")
 
 
-    client_1_train = Subset(full_dataset, range(1 ,50))
-    client_1_test = Subset(full_dataset, range(51 ,80))
-    
-    client_2_train = Subset(full_dataset, range(101 ,150))
-    client_2_test = Subset(full_dataset, range(151 ,181))
-    
-    if partition_id == 1 :
-        train_set = client_1_train
-        val_set = client_1_test
-    else :
-        train_set = client_2_train
-        val_set = client_2_test
+    max_dataset_size = DATASET_SIZE
+    if max_dataset_size > len(full_dataset):
+        logging.warning(f"max_dataset_size ({max_dataset_size}) exceeds dataset size ({len(full_dataset)})")
+        max_dataset_size = len(full_dataset)
+
+    full_dataset = Subset(full_dataset, list(range(max_dataset_size)))
+
+
+    total_size = len(full_dataset)
+    partition_size = total_size // num_partitions
+    remainder = total_size % num_partitions
+
+    lengths = [partition_size] * num_partitions
+    for i in range(remainder):
+        lengths[i] += 1
+
+    subsets = random_split(full_dataset, lengths, generator=torch.Generator().manual_seed(42))
+
+    if partition_id < 0 or partition_id >= num_partitions:
+        raise ValueError(f"Invalid partition_id {partition_id}; must be in range [0, {num_partitions - 1}]")
+
+    partition_dataset = subsets[partition_id]
+
+    assert TRAIN_PERCENTAGE + TEST_PERCENTAGE <= 1.0 , "Test and Train percentage sum must be less than 1.0."
+
+    train_size = int(TRAIN_PERCENTAGE * len(partition_dataset))
+    val_size = len(partition_dataset) - train_size
+
+    train_subset, val_subset = random_split(
+        partition_dataset,
+        [train_size, val_size],
+        generator=torch.Generator().manual_seed(42)
+    )
 
     train_loader = DataLoader(
-        train_set,
+        train_subset,
         batch_size=batch_size,
         shuffle=True,
         collate_fn=collate_fn
     )
 
     val_loader = DataLoader(
-        val_set,
+        val_subset,
         batch_size=batch_size,
         shuffle=False,
         collate_fn=collate_fn
     )
 
-
     return train_loader, val_loader
-
 
 
 def extract_label_mapping(classes_file):
@@ -269,6 +288,6 @@ def test(net, testloader, device):
                 total_targets += len(gt_boxes)
 
     accuracy = correct_detections / total_targets if total_targets > 0 else 0.0
-    return 0.0 , accuracy
+    return accuracy
 
 

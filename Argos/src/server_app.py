@@ -6,6 +6,7 @@ from flwr.common import Context, Metrics, ndarrays_to_parameters
 from flwr.server import ServerApp, ServerAppComponents, ServerConfig
 from flwr.server.strategy import FedAvg
 
+from src.settings import CLASSES_JSON_FILE
 from src.task import *
 
 
@@ -26,7 +27,11 @@ def server_fn(context: Context):
     num_rounds = context.run_config["num-server-rounds"]
 
     # Initialize model parameters
-    ndarrays = get_weights(get_model())
+    number_of_output_classes = len(extract_label_mapping(classes_file=CLASSES_JSON_FILE))
+    model = get_model(number_of_output_classes=number_of_output_classes)
+
+    ndarrays = get_weights(model)
+
     parameters = ndarrays_to_parameters(ndarrays)
 
     # Define the strategy

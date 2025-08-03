@@ -4,13 +4,14 @@ import torch
 from flwr.client import ClientApp, NumPyClient
 from flwr.common import Context
 
+from src.settings import CLASSES_JSON_FILE
 from src.task import *
 
 
 class FlowerClient(NumPyClient):
     def __init__(self, trainloader, valloader, local_epochs, learning_rate):
-
-        self.net = get_model()
+        number_of_output_classes = len(extract_label_mapping(classes_file=CLASSES_JSON_FILE))
+        self.net = get_model(number_of_output_classes=number_of_output_classes)
         self.trainloader = trainloader
         self.valloader = valloader
         self.local_epochs = local_epochs
@@ -19,8 +20,8 @@ class FlowerClient(NumPyClient):
 
     def fit(self, parameters, config):
         """Train the model with data of this client."""
-
-        net = get_model()
+        number_of_output_classes = len(extract_label_mapping(classes_file=CLASSES_JSON_FILE))
+        net = get_model(number_of_output_classes=number_of_output_classes)
         set_weights(net, parameters=parameters)
         training_results = train(
             net,
@@ -37,8 +38,8 @@ class FlowerClient(NumPyClient):
 
     def evaluate(self, parameters, config):
         set_weights(self.net, parameters)
-        loss, accuracy = test(self.net, self.valloader, self.device)
-        return loss, len(self.valloader.dataset), {"accuracy": accuracy}
+        accuracy = test(self.net, self.valloader, self.device)
+        return 0.0, len(self.valloader.dataset), {"accuracy": accuracy}
 
 
 
