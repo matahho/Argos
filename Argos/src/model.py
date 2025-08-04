@@ -62,9 +62,12 @@ def train(net, trainloader, valloader, epochs, learning_rate, device):
         training_loss_history.append(avg_train_loss)
         print(f"Epoch {epoch + 1}/{epochs} — Train Loss: {avg_train_loss:.4f}")
 
+    # Get validation loss and accuracy separately
+    val_loss = validate(net, valloader, device)
     val_accuracy = test(net, valloader, device)
+
     results = {
-        "val_loss": training_loss_history[-1] if training_loss_history else 0.0,
+        "val_loss": val_loss,
         "val_accuracy": val_accuracy,
     }
     return results
@@ -73,35 +76,71 @@ def train(net, trainloader, valloader, epochs, learning_rate, device):
 def test(net, testloader, device):
     net.eval()
     net.to(device)
-
-    iou_threshold = 0.5
+    iou_threshold = 0.1
     correct_detections = 0
     total_targets = 0
+
+    # Save original score threshold and temporarily lower it
+    original_score_thresh = net.roi_heads.score_thresh
+    net.roi_heads.score_thresh = 0.0  # Get ALL predictions, regardless of confidence
 
     with torch.no_grad():
         pbar = tqdm(testloader, desc="Evaluating", leave=False)
         for images, targets in pbar:
             images = [img.to(device) for img in images]
             targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
-
             # Skip samples with no ground-truth boxes
             if any(t['boxes'].numel() == 0 for t in targets):
                 continue
-
-            # Get predictions
+            # Get predictions (with all confidence scores)
             outputs = net(images)
-
             for output, target in zip(outputs, targets):
                 pred_boxes = output["boxes"]
                 gt_boxes = target["boxes"]
-
-                if len(pred_boxes) == 0 or len(gt_boxes) == 0:
+                if len(gt_boxes) == 0:  # Only skip if ground truth is empty
                     continue
-
+                # Handle case where model predicts no boxes
+                if len(pred_boxes) == 0:
+                    total_targets += len(gt_boxes)
+                    continue
                 ious = ops.box_iou(pred_boxes, gt_boxes)
                 max_iou_per_gt, _ = ious.max(dim=0)
                 correct_detections += (max_iou_per_gt > iou_threshold).sum().item()
                 total_targets += len(gt_boxes)
 
+    # Restore original score threshold
+    net.roi_heads.score_thresh = original_score_thresh
+
     accuracy = correct_detections / total_targets if total_targets > 0 else 0.0
     return accuracy
+
+
+def validate(net, valloader, device):
+    """Calculate validation loss only."""
+    # Save current mode
+    was_training = net.training
+    # Set to training mode to calculate loss
+    net.train()
+
+    total_loss = 0.0
+    num_batches = 0
+
+    with torch.no_grad():
+        for images, targets in valloader:
+            images = [img.to(device) for img in images]
+            targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
+            # Skip samples with no ground-truth boxes
+            valid_targets = [t for t in targets if t['boxes'].numel() > 0]
+            if not valid_targets:
+                continue
+            loss_dict = net(images, valid_targets)
+            # This should be a dictionary (not a list)
+            loss = sum(loss for loss in loss_dict.values())
+            total_loss += loss.item()
+            num_batches += 1
+
+    # Restore original mode
+    net.train(was_training)
+
+    avg_loss = total_loss / num_batches if num_batches > 0 else 0.0
+    return avg_loss

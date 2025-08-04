@@ -2,7 +2,7 @@ import torch
 from flwr.client import NumPyClient
 from src.settings import CLASSES_JSON_FILE
 from src.dataset import extract_label_mapping
-from src.model import get_model, get_weights, set_weights, train, test
+from src.model import get_model, get_weights, set_weights, train, test, validate
 
 
 class Client(NumPyClient):
@@ -35,5 +35,6 @@ class Client(NumPyClient):
 
     def evaluate(self, parameters, config):
         set_weights(self.net, parameters)
+        loss = validate(self.net, self.valloader, self.device)  # Get actual loss
         accuracy = test(self.net, self.valloader, self.device)
-        return 0.0, len(self.valloader.dataset), {"accuracy": accuracy}
+        return loss, len(self.valloader.dataset), {"accuracy": accuracy}
