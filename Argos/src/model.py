@@ -8,7 +8,7 @@ from collections import OrderedDict
 
 def get_model(number_of_output_classes,  checkpoint_path = None):
 
-    model = torchvision.models.detection.fasterrcnn_resnet50_fpn(weights="DEFAULT")
+    model = torchvision.models.detection.fasterrcnn_mobilenet_v3_large_320_fpn()
     in_features = model.roi_heads.box_predictor.cls_score.in_features
     model.roi_heads.box_predictor = FastRCNNPredictor(in_features,number_of_output_classes)
 
@@ -34,7 +34,7 @@ def train(net, trainloader, valloader, epochs, learning_rate, device):
     net.to(device)
     net.train()
 
-    optimizer = torch.optim.SGD(net.parameters(), lr=learning_rate, momentum=0.9)
+    optimizer = torch.optim.Adam(net.parameters(), lr=learning_rate)
     training_loss_history = []
 
     for epoch in range(epochs):
