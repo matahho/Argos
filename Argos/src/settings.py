@@ -2,12 +2,13 @@ import os
 
 # Server Settings
 NUMBER_OF_CLIENTS = 10
+CHECKPOINT_PATH = "/kaggle/working/checkpoints"
 
 # Clients' Settings
 CLIENT_BATCH_SIZE = 2
 CLIENT_LEARNING_RATE = 0.001
-TRAIN_PERCENTAGE = 0.8
-TEST_PERCENTAGE = 0.2
+TRAIN_PERCENTAGE = 0.9
+TEST_PERCENTAGE = 0.1
 
 
 # Dataset

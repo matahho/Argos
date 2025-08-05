@@ -27,9 +27,9 @@ clientapp = "src.client_app:app"
 [tool.flwr.app.config]
 num-server-rounds = 10
 fraction-evaluate = 0.3
-local-epochs = 10
+local-epochs = 8
 learning-rate = 0.001
-batch-size = 2
+batch-size = 16
 
 [tool.flwr.federations]
 default = "local-simulation"
