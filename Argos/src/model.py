@@ -129,12 +129,23 @@ def validate(net, valloader, device):
         for images, targets in valloader:
             images = [img.to(device) for img in images]
             targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
-            # Skip samples with no ground-truth boxes
-            valid_targets = [t for t in targets if t['boxes'].numel() > 0]
-            if not valid_targets:
+
+            # Pair up and keep only those with at least one box
+            img_tgt_pairs = [
+                (img, tgt)
+                for img, tgt in zip(images, targets)
+                if tgt["boxes"].numel() > 0
+            ]
+            if not img_tgt_pairs:
                 continue
-            loss_dict = net(images, valid_targets)
-            # This should be a dictionary (not a list)
+
+            # Unzip back into two lists
+            images_filtered, targets_filtered = zip(*img_tgt_pairs)
+            images_filtered = list(images_filtered)
+            targets_filtered = list(targets_filtered)
+
+            # Forward pass with matched lists
+            loss_dict = net(images_filtered, targets_filtered)
             loss = sum(loss for loss in loss_dict.values())
             total_loss += loss.item()
             num_batches += 1
