@@ -5,7 +5,7 @@ import torch
 from PIL import Image
 from torch.utils.data import Subset, random_split, DataLoader
 from torchvision.transforms import Compose, ToTensor
-from src.settings import DATASET_SIZE, TRAIN_PERCENTAGE, TEST_PERCENTAGE
+from src.settings import DATASET_SIZE, TRAIN_PERCENTAGE, TEST_PERCENTAGE ,DATASET_PATH
 
 
 def collate_fn(batch):
@@ -16,7 +16,7 @@ def collate_fn(batch):
 
 def load_data(partition_id: int, num_partitions: int, batch_size: int):
     """Load partitioned MTSD data dynamically based on client ID."""
-    full_dataset = MTSDDataset(root_dir="./data")
+    full_dataset = MTSDDataset(root_dir= DATASET_PATH)
 
 
     max_dataset_size = DATASET_SIZE
